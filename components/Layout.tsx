@@ -52,13 +52,13 @@ export default function Layout({ children }: LayoutProps) {
       {/* Overlay for mobile */}
       {isDrawerOpen && (
         <div
-          className="fixed inset-0 bg-black bg-opacity-50 md:hidden"
+          className="fixed inset-0  bg-black bg-opacity-50 md:hidden"
           onClick={() => setIsDrawerOpen(false)}
         />
       )}
 
       {/* Main content */}
-      <main className="flex-1 p-4">
+      <main className="flex-1 p-4 ">
         <Card>
           <CardHeader>
             <CardTitle>Editor</CardTitle>

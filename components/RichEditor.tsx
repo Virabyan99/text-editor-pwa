@@ -1,5 +1,5 @@
 "use client";
-import { useEffect } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
@@ -13,6 +13,9 @@ import Toolbar from './Toolbar';
 import HeadingPlugin from './HeadingPlugin';
 import CustomErrorBoundary from './CustomErrorBoundary';
 import { useEditorStore } from '@/store/editorStore';
+import debounce from 'lodash.debounce';
+import { useSpring, animated } from '@react-spring/web';
+import { $getRoot } from 'lexical';
 
 const editorConfig = {
   namespace: 'TextEditor',
@@ -44,11 +47,13 @@ const placeholder = (
 function InitialContentPlugin() {
   const [editor] = useLexicalComposerContext();
   const { document } = useEditorStore();
+  const hasLoaded = useRef(false);
 
   useEffect(() => {
-    if (document?.state) {
-      const parsedState = editor.parseEditorState(JSON.parse(document.state));
+    if (document?.content && !hasLoaded.current) {
+      const parsedState = editor.parseEditorState(JSON.parse(document.content));
       editor.setEditorState(parsedState);
+      hasLoaded.current = true;
     }
   }, [editor, document]);
 
@@ -68,29 +73,68 @@ function OnChangePlugin({ onChange }: { onChange: (editor: LexicalEditor, editor
 
 export default function RichEditor() {
   const { loadDocument, updateDocument } = useEditorStore();
+  const [saveStatus, setSaveStatus] = useState<'idle' | 'saving' | 'saved'>('idle');
+  const previousStateRef = useRef<string | null>(null);
 
+  // Animation for save banner
+  const springProps = useSpring({
+    opacity: saveStatus === 'idle' ? 0 : 1,
+    transform: saveStatus === 'idle' ? 'translateY(-20px)' : 'translateY(0)',
+    config: { tension: 200, friction: 20 },
+  });
+
+  // Debounced save with 2-second delay
+  const debouncedSave = debounce(async (stateJson: string) => {
+    try {
+      setSaveStatus('saving');
+      await updateDocument(stateJson);
+      setSaveStatus('saved');
+      setTimeout(() => setSaveStatus('idle'), 2000);
+    } catch (error) {
+      setSaveStatus('idle');
+      console.error('Save failed:', error); // Log error to console instead of toast
+    }
+  }, 2000);
+
+  // Load document on mount
   useEffect(() => {
     loadDocument();
   }, [loadDocument]);
 
+  // Save on change with content validation
   function onChange(editor: LexicalEditor, editorState: any) {
-    const stateJson = JSON.stringify(editorState.toJSON());
-    updateDocument(stateJson);
+    editorState.read(() => {
+      const stateJson = JSON.stringify(editorState.toJSON());
+      // Only save if the state has changed
+      if (stateJson !== previousStateRef.current) {
+        previousStateRef.current = stateJson;
+        debouncedSave(stateJson);
+      }
+    });
   }
 
   return (
     <LexicalComposer initialConfig={editorConfig}>
-      <Toolbar />
-      <div className="relative border rounded-md p-4 min-h-[200px]">
-        <RichTextPlugin
-          contentEditable={<ContentEditable className="editor-content outline-none" />}
-          placeholder={placeholder}
-          ErrorBoundary={CustomErrorBoundary}
-        />
-        <HeadingPlugin />
-        <HistoryPlugin />
-        <InitialContentPlugin />
-        <OnChangePlugin onChange={onChange} />
+      <div className="relative ">
+        {/* Save status banner */}
+        {/* <animated.div
+          style={springProps}
+          className="absolute top-0 right-0 bg-slate-900 text-white px-4 py-2 rounded-bl-md"
+        >
+          {saveStatus === 'saving' ? 'Saving...' : 'Saved'}
+        </animated.div> */}
+        <Toolbar />
+        <div className="relative border rounded-md p-4 min-h-[200px] overflow-y-auto">
+          <RichTextPlugin
+            contentEditable={<ContentEditable className="editor-content outline-none" />}
+            placeholder={placeholder}
+            ErrorBoundary={CustomErrorBoundary}
+          />
+          <HeadingPlugin />
+          <HistoryPlugin />
+          <InitialContentPlugin />
+          <OnChangePlugin onChange={onChange} />
+        </div>
       </div>
     </LexicalComposer>
   );
