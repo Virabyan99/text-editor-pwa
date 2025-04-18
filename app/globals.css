@@ -112,8 +112,8 @@
   --sidebar-ring: oklch(0.551 0.027 264.364);
 }
 
-.editor-content span {
-  text-decoration: inherit !important;
+.editor-content .underline {
+  text-decoration: underline !important;
 }
 
 @layer base {
