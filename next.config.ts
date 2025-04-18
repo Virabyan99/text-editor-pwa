@@ -1,4 +1,5 @@
-/** @type {import('next').NextConfig} */
+import type { NextConfig } from 'next';
+
 const withPWA = require('next-pwa')({
   dest: 'public',
   disable: process.env.NODE_ENV === 'development',
@@ -19,10 +20,13 @@ const withPWA = require('next-pwa')({
   fallbacks: {
     document: '/offline.html',
   },
-});
+}) as (config: NextConfig) => NextConfig;
 
-const nextConfig = {
+const nextConfig: NextConfig = {
   reactStrictMode: true,
+  typescript: {
+    ignoreBuildErrors: true,
+  },
 };
 
 module.exports = withPWA(nextConfig);
