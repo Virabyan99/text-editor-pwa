@@ -1,19 +1,22 @@
 "use client";
+import { useEffect } from 'react';
 import { LexicalComposer } from '@lexical/react/LexicalComposer';
 import { RichTextPlugin } from '@lexical/react/LexicalRichTextPlugin';
 import { ContentEditable } from '@lexical/react/LexicalContentEditable';
 import { HistoryPlugin } from '@lexical/react/LexicalHistoryPlugin';
-import {  HeadingNode, QuoteNode } from '@lexical/rich-text';
+import { HeadingNode, QuoteNode } from '@lexical/rich-text';
 import { ListNode, ListItemNode } from '@lexical/list';
 import { LinkNode } from '@lexical/link';
+import { LexicalEditor } from 'lexical';
+import { useLexicalComposerContext } from '@lexical/react/LexicalComposerContext';
 import Toolbar from './Toolbar';
 import HeadingPlugin from './HeadingPlugin';
 import CustomErrorBoundary from './CustomErrorBoundary';
-import { ParagraphNode } from 'lexical';
+import { useEditorStore } from '@/store/editorStore';
 
 const editorConfig = {
   namespace: 'TextEditor',
-  nodes: [ParagraphNode, HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode],
+  nodes: [HeadingNode, QuoteNode, ListNode, ListItemNode, LinkNode],
   onError(error: Error) {
     console.error(error);
   },
@@ -37,7 +40,44 @@ const placeholder = (
   </div>
 );
 
+// Plugin to load initial content from the store using JSON
+function InitialContentPlugin() {
+  const [editor] = useLexicalComposerContext();
+  const { document } = useEditorStore();
+
+  useEffect(() => {
+    if (document?.state) {
+      const parsedState = editor.parseEditorState(JSON.parse(document.state));
+      editor.setEditorState(parsedState);
+    }
+  }, [editor, document]);
+
+  return null;
+}
+
+// Plugin to save content on change using JSON
+function OnChangePlugin({ onChange }: { onChange: (editor: LexicalEditor, editorState: any) => void }) {
+  const [editor] = useLexicalComposerContext();
+  useEffect(() => {
+    return editor.registerUpdateListener(({ editorState }) => {
+      onChange(editor, editorState);
+    });
+  }, [editor, onChange]);
+  return null;
+}
+
 export default function RichEditor() {
+  const { loadDocument, updateDocument } = useEditorStore();
+
+  useEffect(() => {
+    loadDocument();
+  }, [loadDocument]);
+
+  function onChange(editor: LexicalEditor, editorState: any) {
+    const stateJson = JSON.stringify(editorState.toJSON());
+    updateDocument(stateJson);
+  }
+
   return (
     <LexicalComposer initialConfig={editorConfig}>
       <Toolbar />
@@ -49,6 +89,8 @@ export default function RichEditor() {
         />
         <HeadingPlugin />
         <HistoryPlugin />
+        <InitialContentPlugin />
+        <OnChangePlugin onChange={onChange} />
       </div>
     </LexicalComposer>
   );
